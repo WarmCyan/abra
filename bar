@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+#
+# TODO: this doesn't handle editing multiline bar files yet
+# TODO: status left and right
+# STRT: break up the logical items (by tab?)
+# TODO: add mouse support https://github.com/tinmarino/mouse_xterm?tab=readme-ov-file
+# TODO: start working on plumb
+
+
+file="bar.txt"
+
+focused_item=0
+items=()
+
+
+function edit {
+  # nvim --clean -c ":set noshowmode|set laststatus=0|set noruler|set noshowcmd|set cmdheight=0|:inoremap jk <SPACE><BS><ESC>|:nnoremap; :" bar.txt
+  echo -en "\033[1A"  # move up one
+  echo -en "\033[0m\033[K"  # erase to end of line
+  echo -en "\033[30;43m"  # change background color
+  read -er -i "$(cat $file)" -p ">" new_text
+  echo "$new_text" > $file
+  render
+  await_action
+}
+
+
+
+function read_into_array {
+  
+  split=$(echo "$(cat $file)" | sed "s/\\\t/\n/g")
+  # echo ""
+  # echo "$split"
+  # for thing in $split; do
+  #   echo "!!! $thing"
+  # done
+  IFS=$'\n' read -r -d '' -a items <<< "$split"
+  items=$items
+  # echo "$split" | while IFS="" read -r line
+  # do
+  #   printf '!!!! %s\n' "$line"
+  # done
+}
+
+
+
+
+function render {
+  read_into_array
+  echo -en "\033[1A\r"  # move up one
+  echo -en "\033[0m\033[K"  # erase to end of line
+  echo -en "\033[30;44m"  # nice bg color
+  # echo -en "$(cat $file)"
+  
+  for (( i=0; i<${#items[@]}; i++ ))
+  do
+    if [[ $i -eq $focused_item ]]; then
+      #echo -en "\033[30;43m$i: $(printf "%q" "${items[$i]}")"
+      echo -en "\033[30;45m ${items[$i]} "
+    else
+      echo -en "\033[30;44m ${items[$i]} "
+    fi
+  done
+}
+
+
+function await_action {
+  IFS=
+  read -rsn1 input
+  # echo -n "you pressed $input"
+
+  if [[ "$input" == "e" ]]; then
+    echo -e "\r"
+    edit
+  elif [[ "$input" == "p" ]]; then
+    printthings
+  elif [[ "$input" == "w" || "$input" == "n" ]]; then
+    focused_item=$((focused_item + 1))
+    render
+    await_action
+  elif [[ "$input" == "b" ]]; then
+    focused_item=$((focused_item - 1))
+    render
+    await_action
+  elif [[ "$input" == "" ]]; then
+    # execute
+    true;
+  else
+    await_action
+  fi
+}
+
+render
+await_action
